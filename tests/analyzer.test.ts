@@ -32,8 +32,8 @@ describe('AHEAnalyzer', () => {
   });
 
   describe('analyzeSessions', () => {
-    it('should return empty report when no traces', () => {
-      const report = analyzer.analyzeSessions();
+    it('should return empty report when no traces', async () => {
+      const report = await analyzer.analyzeSessions();
 
       expect(report.analysis_info.sessions_analyzed).toBe(0);
       expect(report.analysis_info.total_traces).toBe(0);
@@ -41,13 +41,13 @@ describe('AHEAnalyzer', () => {
       expect(report.issues).toEqual([]);
     });
 
-    it('should analyze tool usage statistics', () => {
+    it('should analyze tool usage statistics', async () => {
       // Create test traces
-      traceManager.saveTrace('Read', {}, 'output', 100, 'session-1');
-      traceManager.saveTrace('Read', {}, 'output', 150, 'session-1');
-      traceManager.saveTrace('Write', {}, 'output', 200, 'session-1');
+      await traceManager.saveTrace('Read', {}, 'output', 100, 'session-1');
+      await traceManager.saveTrace('Read', {}, 'output', 150, 'session-1');
+      await traceManager.saveTrace('Write', {}, 'output', 200, 'session-1');
 
-      const report = analyzer.analyzeSessions();
+      const report = await analyzer.analyzeSessions();
 
       expect(report.tool_statistics.length).toBe(2);
       expect(report.tool_statistics[0].name).toBe('Read');
@@ -56,16 +56,16 @@ describe('AHEAnalyzer', () => {
       expect(report.tool_statistics[1].call_count).toBe(1);
     });
 
-    it('should identify high error rate tools', () => {
+    it('should identify high error rate tools', async () => {
       // Create traces with high error rate for Bash
       for (let i = 0; i < 8; i++) {
-        traceManager.saveTrace('Bash', {}, 'Error: failed', 100, 'session-1');
+        await traceManager.saveTrace('Bash', {}, 'Error: failed', 100, 'session-1');
       }
       for (let i = 0; i < 2; i++) {
-        traceManager.saveTrace('Bash', {}, 'success', 100, 'session-1');
+        await traceManager.saveTrace('Bash', {}, 'success', 100, 'session-1');
       }
 
-      const report = analyzer.analyzeSessions();
+      const report = await analyzer.analyzeSessions();
 
       const bashStats = report.tool_statistics.find(s => s.name === 'Bash');
       expect(bashStats?.error_rate_percent).toBe(80);
@@ -75,39 +75,39 @@ describe('AHEAnalyzer', () => {
       expect(errorIssue?.severity).toBe('high');
     });
 
-    it('should identify slow operations', () => {
+    it('should identify slow operations', async () => {
       // Create slow traces (over 5000ms threshold)
-      traceManager.saveTrace('Grep', {}, 'output', 8000, 'session-1');
-      traceManager.saveTrace('Grep', {}, 'output', 9000, 'session-1');
+      await traceManager.saveTrace('Grep', {}, 'output', 8000, 'session-1');
+      await traceManager.saveTrace('Grep', {}, 'output', 9000, 'session-1');
 
-      const report = analyzer.analyzeSessions();
+      const report = await analyzer.analyzeSessions();
 
       const slowIssue = report.issues.find(i => i.name.includes('Slow Operations'));
       expect(slowIssue).toBeDefined();
       expect(slowIssue?.severity).toBe('medium');
     });
 
-    it('should generate recommendations', () => {
+    it('should generate recommendations', async () => {
       // Create problematic traces
       for (let i = 0; i < 10; i++) {
-        traceManager.saveTrace('Bash', {}, 'Error', 100, 'session-1');
+        await traceManager.saveTrace('Bash', {}, 'Error', 100, 'session-1');
       }
 
-      const report = analyzer.analyzeSessions();
+      const report = await analyzer.analyzeSessions();
 
       expect(report.recommendations.length).toBeGreaterThan(0);
       expect(report.recommendations[0]).toContain('Priority');
     });
 
-    it('should use custom slow threshold from config', () => {
+    it('should use custom slow threshold from config', async () => {
       // Set custom threshold
       process.env.AHE_SLOW_THRESHOLD_MS = '100';
       resetConfig();
       analyzer = new AHEAnalyzer(tempDir);
 
-      traceManager.saveTrace('Read', {}, 'output', 150, 'session-1');
+      await traceManager.saveTrace('Read', {}, 'output', 150, 'session-1');
 
-      const report = analyzer.analyzeSessions();
+      const report = await analyzer.analyzeSessions();
 
       // With threshold of 100ms, 150ms should be slow
       expect(report.summary.slow_operations).toBe(1);
@@ -115,11 +115,11 @@ describe('AHEAnalyzer', () => {
   });
 
   describe('analyzeSession', () => {
-    it('should analyze a specific session', () => {
-      traceManager.saveTrace('Read', {}, 'output', 100, 'session-1');
-      traceManager.saveTrace('Write', {}, 'output', 200, 'session-2');
+    it('should analyze a specific session', async () => {
+      await traceManager.saveTrace('Read', {}, 'output', 100, 'session-1');
+      await traceManager.saveTrace('Write', {}, 'output', 200, 'session-2');
 
-      const report = analyzer.analyzeSession('session-1');
+      const report = await analyzer.analyzeSession('session-1');
 
       expect(report.analysis_info.sessions_analyzed).toBe(1);
       expect(report.tool_statistics.length).toBe(1);
@@ -128,13 +128,13 @@ describe('AHEAnalyzer', () => {
   });
 
   describe('saveReport', () => {
-    it('should save report to file', () => {
-      traceManager.saveTrace('Read', {}, 'output', 100, 'session-1');
+    it('should save report to file', async () => {
+      await traceManager.saveTrace('Read', {}, 'output', 100, 'session-1');
 
-      const report = analyzer.analyzeSessions();
+      const report = await analyzer.analyzeSessions();
       const outputPath = join(tempDir, 'test-report.json');
 
-      const saved = analyzer.saveReport(report, outputPath);
+      const saved = await analyzer.saveReport(report, outputPath);
 
       expect(saved).toBe(true);
       expect(existsSync(outputPath)).toBe(true);
@@ -143,19 +143,19 @@ describe('AHEAnalyzer', () => {
       expect(savedReport.analysis_info.total_traces).toBe(1);
     });
 
-    it('should save to default location when no path provided', () => {
-      traceManager.saveTrace('Read', {}, 'output', 100, 'session-1');
+    it('should save to default location when no path provided', async () => {
+      await traceManager.saveTrace('Read', {}, 'output', 100, 'session-1');
 
-      const report = analyzer.analyzeSessions();
-      const saved = analyzer.saveReport(report);
+      const report = await analyzer.analyzeSessions();
+      const saved = await analyzer.saveReport(report);
 
       expect(saved).toBe(true);
     });
 
-    it('should return false on save error', () => {
-      const report = analyzer.analyzeSessions();
+    it('should return false on save error', async () => {
+      const report = await analyzer.analyzeSessions();
       // Try to save to invalid path
-      const saved = analyzer.saveReport(report, '/nonexistent/path/report.json');
+      const saved = await analyzer.saveReport(report, '/nonexistent/path/report.json');
 
       expect(saved).toBe(false);
     });

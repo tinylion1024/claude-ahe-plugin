@@ -61,7 +61,7 @@ async function main(): Promise<void> {
     const manager = new TraceManager(config.collection.trace_dir);
 
     // Save trace with configured truncate length
-    const trace = manager.saveTrace(
+    const trace = await manager.saveTrace(
       event.tool_name,
       event.tool_input,
       event.tool_output,
@@ -72,7 +72,7 @@ async function main(): Promise<void> {
     );
 
     // Cleanup old traces with configured max files
-    manager.cleanupOldTraces(config.collection.max_trace_files);
+    await manager.cleanupOldTraces(config.collection.max_trace_files);
 
     // Return success (no modification to tool output)
     console.log(

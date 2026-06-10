@@ -29,6 +29,9 @@ describe('config', () => {
     delete process.env.AHE_SHOW_TIMESTAMPS;
     delete process.env.AHE_SHOW_TIMES;
     delete process.env.AHE_MAX_ISSUES;
+    delete process.env.AHE_MAX_ERRORS_PER_SESSION;
+    delete process.env.AHE_MAX_SLOW_OPS_PER_SESSION;
+    delete process.env.AHE_ERROR_PREVIEW_LENGTH;
   });
 
   afterEach(() => {
@@ -52,6 +55,9 @@ describe('config', () => {
           slow_operation_threshold_ms: 5000,
           error_keywords: ['error'],
           analysis_dir: '/tmp/analysis',
+          max_errors_per_session: 10,
+          max_slow_ops_per_session: 10,
+          error_preview_length: 200,
         },
         display: {
           show_timestamps: true,
@@ -79,6 +85,9 @@ describe('config', () => {
           slow_operation_threshold_ms: 5000,
           error_keywords: ['error'],
           analysis_dir: '/tmp/analysis',
+          max_errors_per_session: 10,
+          max_slow_ops_per_session: 10,
+          error_preview_length: 200,
         },
         display: {
           show_timestamps: true,
@@ -166,6 +175,51 @@ describe('config', () => {
       resetConfig();
       const config = loadConfig();
       expect(config.collection.trace_dir).toBe('/tmp/my-traces');
+    });
+
+    it('should read AHE_MAX_ERRORS_PER_SESSION', () => {
+      process.env.AHE_MAX_ERRORS_PER_SESSION = '20';
+      resetConfig();
+      const config = loadConfig();
+      expect(config.analysis.max_errors_per_session).toBe(20);
+    });
+
+    it('should read AHE_MAX_SLOW_OPS_PER_SESSION', () => {
+      process.env.AHE_MAX_SLOW_OPS_PER_SESSION = '15';
+      resetConfig();
+      const config = loadConfig();
+      expect(config.analysis.max_slow_ops_per_session).toBe(15);
+    });
+
+    it('should read AHE_ERROR_PREVIEW_LENGTH', () => {
+      process.env.AHE_ERROR_PREVIEW_LENGTH = '500';
+      resetConfig();
+      const config = loadConfig();
+      expect(config.analysis.error_preview_length).toBe(500);
+    });
+
+    it('should handle invalid AHE_MAX_ERRORS_PER_SESSION gracefully', () => {
+      process.env.AHE_MAX_ERRORS_PER_SESSION = 'invalid';
+      resetConfig();
+      const config = loadConfig();
+      // Should use default
+      expect(config.analysis.max_errors_per_session).toBe(10);
+    });
+
+    it('should handle invalid AHE_MAX_SLOW_OPS_PER_SESSION gracefully', () => {
+      process.env.AHE_MAX_SLOW_OPS_PER_SESSION = '-5';
+      resetConfig();
+      const config = loadConfig();
+      // Should use default
+      expect(config.analysis.max_slow_ops_per_session).toBe(10);
+    });
+
+    it('should handle invalid AHE_ERROR_PREVIEW_LENGTH gracefully', () => {
+      process.env.AHE_ERROR_PREVIEW_LENGTH = '0';
+      resetConfig();
+      const config = loadConfig();
+      // Should use default
+      expect(config.analysis.error_preview_length).toBe(200);
     });
   });
 

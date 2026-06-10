@@ -29,7 +29,7 @@ async function main(): Promise<void> {
     const manager = new TraceManager(config.collection.trace_dir);
 
     // Generate summary
-    const summary = manager.generateSessionSummary(sessionId);
+    const summary = await manager.generateSessionSummary(sessionId);
 
     // Output summary (for logging)
     if (summary.status === 'success') {

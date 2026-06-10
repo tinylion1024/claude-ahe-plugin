@@ -55,7 +55,7 @@ async function runAnalyze(lastN?: number): Promise<void> {
   console.log(`\n📊 Analyzing last ${n} sessions...\n`);
 
   const analyzer = new AHEAnalyzer();
-  const report = analyzer.analyzeSessions(undefined, n);
+  const report = await analyzer.analyzeSessions(undefined, n);
 
   // Print summary
   console.log('=== Analysis Summary ===');
@@ -117,8 +117,8 @@ async function runStatus(): Promise<void> {
   const manager = new TraceManager();
 
   try {
-    const traces = manager.loadTraces(undefined, 100);
-    const summaries = manager.loadSummaries(undefined, 100);
+    const traces = await manager.loadTraces(undefined, 100);
+    const summaries = await manager.loadSummaries(undefined, 100);
 
     console.log('=== Recent Activity ===');
     console.log(`Total traces collected: ${traces.length}`);
@@ -163,9 +163,9 @@ async function runReport(): Promise<void> {
   console.log('\n📄 Generating report...\n');
 
   const analyzer = new AHEAnalyzer();
-  const report = analyzer.analyzeSessions(undefined, 10);
+  const report = await analyzer.analyzeSessions(undefined, 10);
 
-  const saved = analyzer.saveReport(report);
+  const saved = await analyzer.saveReport(report);
   if (saved) {
     const config = getConfig();
     console.log(`✅ Report saved to ${config.analysis.analysis_dir}/latest.json`);
@@ -182,7 +182,7 @@ async function runClean(days?: number): Promise<void> {
   console.log(`\n🧹 Cleaning traces older than ${maxDays} days...\n`);
 
   const manager = new TraceManager();
-  const deleted = manager.cleanupOldTraces(config.collection.max_trace_files, maxDays);
+  const deleted = await manager.cleanupOldTraces(config.collection.max_trace_files, maxDays);
 
   console.log(`✅ Cleaned ${deleted} old traces`);
 }

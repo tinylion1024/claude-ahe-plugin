@@ -24,6 +24,9 @@ export const AHEConfigSchema = z.object({
       .array(z.string())
       .default(['error', 'failed', 'exception', 'traceback', 'timeout']),
     analysis_dir: z.string().default(join(homedir(), '.claude-ahe', 'analysis')),
+    max_errors_per_session: z.number().int().positive().default(10),
+    max_slow_ops_per_session: z.number().int().positive().default(10),
+    error_preview_length: z.number().int().positive().default(200),
   }),
   display: z.object({
     show_timestamps: z.boolean().default(true),
@@ -50,6 +53,9 @@ const DEFAULT_CONFIG: AHEConfig = {
     slow_operation_threshold_ms: 5000,
     error_keywords: ['error', 'failed', 'exception', 'traceback', 'timeout'],
     analysis_dir: join(homedir(), '.claude-ahe', 'analysis'),
+    max_errors_per_session: 10,
+    max_slow_ops_per_session: 10,
+    error_preview_length: 200,
   },
   display: {
     show_timestamps: true,
@@ -76,7 +82,7 @@ function validatePath(path: string): boolean {
 function parseEnvInt(value: string | undefined, defaultValue: number): number {
   if (!value) return defaultValue;
   const parsed = parseInt(value, 10);
-  if (isNaN(parsed) || parsed < 0) {
+  if (isNaN(parsed) || parsed <= 0) {
     console.warn(`[AHE] Invalid environment value: ${value}, using default: ${defaultValue}`);
     return defaultValue;
   }
@@ -141,6 +147,18 @@ export function loadConfig(): AHEConfig {
         envAnalysisDir && validatePath(envAnalysisDir)
           ? envAnalysisDir
           : DEFAULT_CONFIG.analysis.analysis_dir,
+      max_errors_per_session: parseEnvInt(
+        process.env.AHE_MAX_ERRORS_PER_SESSION,
+        DEFAULT_CONFIG.analysis.max_errors_per_session
+      ),
+      max_slow_ops_per_session: parseEnvInt(
+        process.env.AHE_MAX_SLOW_OPS_PER_SESSION,
+        DEFAULT_CONFIG.analysis.max_slow_ops_per_session
+      ),
+      error_preview_length: parseEnvInt(
+        process.env.AHE_ERROR_PREVIEW_LENGTH,
+        DEFAULT_CONFIG.analysis.error_preview_length
+      ),
     },
     display: {
       show_timestamps: parseEnvBool(

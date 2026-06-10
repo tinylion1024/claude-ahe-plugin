@@ -4,7 +4,8 @@
  * @module lib/analyzer
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync } from 'fs';
+import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import {
   TraceData,
@@ -14,8 +15,10 @@ import {
   ToolStats,
   Issue,
 } from '../types/index.js';
+import { IAnalyzer } from '../types/interfaces.js';
 import { TraceManager } from './tracer.js';
 import { getConfig, type AHEConfig } from './config.js';
+import { getLogger } from './logger.js';
 
 /**
  * Analyzes collected traces and generates improvement recommendations.
@@ -23,11 +26,11 @@ import { getConfig, type AHEConfig } from './config.js';
  * @example
  * ```typescript
  * const analyzer = new AHEAnalyzer();
- * const report = analyzer.analyzeSessions(undefined, 5);
- * analyzer.saveReport(report, 'report.json');
+ * const report = await analyzer.analyzeSessions(undefined, 5);
+ * await analyzer.saveReport(report, 'report.json');
  * ```
  */
-export class AHEAnalyzer {
+export class AHEAnalyzer implements IAnalyzer {
   private traceManager: TraceManager;
   private config: AHEConfig;
   private slowThresholdMs: number;
@@ -52,15 +55,15 @@ export class AHEAnalyzer {
    * @param lastN - Number of recent sessions to analyze (default from config)
    * @returns Complete AnalysisReport with statistics, issues, and recommendations
    */
-  analyzeSessions(sessionIds?: string[], lastN?: number): AnalysisReport {
+  async analyzeSessions(sessionIds?: string[], lastN?: number): Promise<AnalysisReport> {
     const lookback = lastN ?? this.config.analysis.default_lookback_sessions;
 
     // Load traces and summaries
-    const traces = this.traceManager.loadTraces(
+    const traces = await this.traceManager.loadTraces(
       sessionIds ? sessionIds[0] : undefined,
       sessionIds ? undefined : lookback
     );
-    const summaries = this.traceManager.loadSummaries(
+    const summaries = await this.traceManager.loadSummaries(
       sessionIds ? sessionIds[0] : undefined,
       sessionIds ? undefined : lookback
     );
@@ -97,7 +100,7 @@ export class AHEAnalyzer {
    * @param sessionId - The session ID to analyze
    * @returns AnalysisReport for the specified session
    */
-  analyzeSession(sessionId: string): AnalysisReport {
+  async analyzeSession(sessionId: string): Promise<AnalysisReport> {
     return this.analyzeSessions([sessionId]);
   }
 
@@ -306,7 +309,8 @@ export class AHEAnalyzer {
    * @param outputFile - Optional custom output file path
    * @returns true if saved successfully, false otherwise
    */
-  saveReport(report: AnalysisReport, outputFile?: string): boolean {
+  async saveReport(report: AnalysisReport, outputFile?: string): Promise<boolean> {
+    const logger = getLogger();
     try {
       let outputPath: string;
 
@@ -315,19 +319,21 @@ export class AHEAnalyzer {
       } else {
         const analysisDir = this.config.analysis.analysis_dir;
         if (!existsSync(analysisDir)) {
-          if (!mkdirSync(analysisDir, { recursive: true })) {
-            console.error(`[AHE] Failed to create analysis directory: ${analysisDir}`);
+          try {
+            await mkdir(analysisDir, { recursive: true });
+          } catch (mkdirError) {
+            logger.error(`Failed to create analysis directory: ${analysisDir}`, mkdirError);
             return false;
           }
         }
         outputPath = join(analysisDir, 'latest.json');
       }
 
-      writeFileSync(outputPath, JSON.stringify(report, null, 2), 'utf-8');
+      await writeFile(outputPath, JSON.stringify(report, null, 2), 'utf-8');
       return true;
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error(`[AHE] Failed to save report: ${errMsg}`);
+      logger.error(`Failed to save report: ${errMsg}`);
       return false;
     }
   }

@@ -4,15 +4,8 @@
  * @module lib/tracer
  */
 
-import {
-  appendFileSync,
-  existsSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-  unlinkSync,
-  writeFileSync,
-} from 'fs';
+import { appendFile, readdir, stat, unlink, readFile, writeFile, mkdir } from 'fs/promises';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import {
   TraceData,
@@ -22,8 +15,10 @@ import {
   ErrorInfo,
   SlowOperationInfo,
 } from '../types/index.js';
+import { ITraceManager } from '../types/interfaces.js';
 import { truncateOutput, getSessionId, ensureDir, isError, getTimestamp } from './utils.js';
 import { getConfig } from './config.js';
+import { getLogger } from './logger.js';
 
 /**
  * Manages trace collection, storage, and retrieval for Claude Code tool executions.
@@ -31,14 +26,17 @@ import { getConfig } from './config.js';
  * @example
  * ```typescript
  * const manager = new TraceManager();
- * manager.saveTrace('Read', { file_path: '/test.txt' }, 'content', 150);
- * const traces = manager.loadTraces('session-123');
+ * await manager.saveTrace('Read', { file_path: '/test.txt' }, 'content', 150);
+ * const traces = await manager.loadTraces('session-123');
  * ```
  */
-export class TraceManager {
+export class TraceManager implements ITraceManager {
   private traceDir: string;
   private slowThresholdMs: number;
   private errorKeywords: string[];
+  private maxErrorsPerSession: number;
+  private maxSlowOpsPerSession: number;
+  private errorPreviewLength: number;
 
   /**
    * Creates a new TraceManager instance.
@@ -51,6 +49,9 @@ export class TraceManager {
     this.traceDir = traceDir || config.collection.trace_dir;
     this.slowThresholdMs = config.analysis.slow_operation_threshold_ms;
     this.errorKeywords = config.analysis.error_keywords;
+    this.maxErrorsPerSession = config.analysis.max_errors_per_session;
+    this.maxSlowOpsPerSession = config.analysis.max_slow_ops_per_session;
+    this.errorPreviewLength = config.analysis.error_preview_length;
 
     if (!ensureDir(this.traceDir)) {
       throw new Error(`Failed to create trace directory: ${this.traceDir}`);
@@ -69,7 +70,7 @@ export class TraceManager {
    * @param truncateLength - Maximum characters to store from output (default from config)
    * @returns The saved TraceData object
    */
-  saveTrace(
+  async saveTrace(
     toolName: string,
     toolInput: Record<string, unknown>,
     toolOutput: unknown,
@@ -77,7 +78,8 @@ export class TraceManager {
     sessionId?: string,
     workingDirectory?: string,
     truncateLength?: number
-  ): TraceData {
+  ): Promise<TraceData> {
+    const logger = getLogger();
     const config = getConfig();
     const maxLen = truncateLength ?? config.collection.truncate_output_chars;
 
@@ -100,10 +102,10 @@ export class TraceManager {
     const traceFile = join(this.traceDir, `${trace.session_id}.jsonl`);
 
     try {
-      appendFileSync(traceFile, JSON.stringify(trace) + '\n', 'utf-8');
+      await appendFile(traceFile, JSON.stringify(trace) + '\n', 'utf-8');
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error(`[AHE] Failed to save trace: ${errMsg}`);
+      logger.error(`Failed to save trace: ${errMsg}`);
       throw error;
     }
 
@@ -118,7 +120,8 @@ export class TraceManager {
    * @param since - Optional date to filter traces by timestamp
    * @returns Array of TraceData objects
    */
-  loadTraces(sessionId?: string, lastN?: number, since?: Date): TraceData[] {
+  async loadTraces(sessionId?: string, lastN?: number, since?: Date): Promise<TraceData[]> {
+    const logger = getLogger();
     const traces: TraceData[] = [];
 
     if (sessionId) {
@@ -130,12 +133,20 @@ export class TraceManager {
     // Load multiple sessions
     let traceFiles: string[];
     try {
-      traceFiles = readdirSync(this.traceDir)
-        .filter(f => f.endsWith('.jsonl'))
-        .map(f => join(this.traceDir, f))
-        .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+      const files = await readdir(this.traceDir);
+      traceFiles = files.filter(f => f.endsWith('.jsonl')).map(f => join(this.traceDir, f));
+
+      // Sort by modification time (newest first)
+      const fileStats = await Promise.all(
+        traceFiles.map(async f => ({
+          path: f,
+          mtime: (await stat(f)).mtimeMs,
+        }))
+      );
+      fileStats.sort((a, b) => b.mtime - a.mtime);
+      traceFiles = fileStats.map(f => f.path);
     } catch (error) {
-      console.warn('[AHE] Could not read traces directory:', error);
+      logger.warn('Could not read traces directory:', error);
       return [];
     }
 
@@ -144,7 +155,7 @@ export class TraceManager {
     }
 
     for (const traceFile of traceFiles) {
-      const fileTraces = this.loadTraceFile(traceFile, since);
+      const fileTraces = await this.loadTraceFile(traceFile, since);
       traces.push(...fileTraces);
     }
 
@@ -158,17 +169,18 @@ export class TraceManager {
    * @param lastN - Optional limit on number of summaries to load
    * @returns Array of SessionSummary objects
    */
-  loadSummaries(sessionId?: string, lastN?: number): SessionSummary[] {
+  async loadSummaries(sessionId?: string, lastN?: number): Promise<SessionSummary[]> {
+    const logger = getLogger();
     const summaries: SessionSummary[] = [];
 
     if (sessionId) {
       const summaryFile = join(this.traceDir, `${sessionId}_summary.json`);
       if (existsSync(summaryFile)) {
         try {
-          const content = readFileSync(summaryFile, 'utf-8');
+          const content = await readFile(summaryFile, 'utf-8');
           summaries.push(JSON.parse(content));
         } catch (error) {
-          console.warn(`[AHE] Could not load summary for session ${sessionId}:`, error);
+          logger.warn(`Could not load summary for session ${sessionId}:`, error);
         }
       }
       return summaries;
@@ -176,12 +188,22 @@ export class TraceManager {
 
     let summaryFiles: string[];
     try {
-      summaryFiles = readdirSync(this.traceDir)
+      const files = await readdir(this.traceDir);
+      summaryFiles = files
         .filter(f => f.endsWith('_summary.json'))
-        .map(f => join(this.traceDir, f))
-        .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+        .map(f => join(this.traceDir, f));
+
+      // Sort by modification time (newest first)
+      const fileStats = await Promise.all(
+        summaryFiles.map(async f => ({
+          path: f,
+          mtime: (await stat(f)).mtimeMs,
+        }))
+      );
+      fileStats.sort((a, b) => b.mtime - a.mtime);
+      summaryFiles = fileStats.map(f => f.path);
     } catch (error) {
-      console.warn('[AHE] Could not read summaries:', error);
+      logger.warn('Could not read summaries:', error);
       return [];
     }
 
@@ -191,10 +213,10 @@ export class TraceManager {
 
     for (const summaryFile of summaryFiles) {
       try {
-        const content = readFileSync(summaryFile, 'utf-8');
+        const content = await readFile(summaryFile, 'utf-8');
         summaries.push(JSON.parse(content));
       } catch (error) {
-        console.warn(`[AHE] Skipping invalid summary file: ${summaryFile}`);
+        logger.warn(`Skipping invalid summary file: ${summaryFile}`);
         continue;
       }
     }
@@ -208,9 +230,10 @@ export class TraceManager {
    * @param sessionId - Optional session ID (uses current session if not provided)
    * @returns SessionSummary object with statistics and issues
    */
-  generateSessionSummary(sessionId?: string): SessionSummary {
+  async generateSessionSummary(sessionId?: string): Promise<SessionSummary> {
+    const logger = getLogger();
     const id = sessionId || getSessionId();
-    const traces = this.loadTraces(id);
+    const traces = await this.loadTraces(id);
 
     if (traces.length === 0) {
       return {
@@ -258,7 +281,7 @@ export class TraceManager {
         errors.push({
           tool: toolName,
           timestamp: trace.timestamp,
-          output_preview: trace.tool.output.substring(0, 200),
+          output_preview: trace.tool.output.substring(0, this.errorPreviewLength),
         });
       }
 
@@ -305,19 +328,19 @@ export class TraceManager {
       tool_usage: toolCounts,
       tool_statistics: toolStats,
       issues: {
-        errors: errors.slice(0, 10),
+        errors: errors.slice(0, this.maxErrorsPerSession),
         slow_operations: slowOps
           .sort((a, b) => b.execution_time_ms - a.execution_time_ms)
-          .slice(0, 10),
+          .slice(0, this.maxSlowOpsPerSession),
       },
     };
 
     // Save summary
     const summaryFile = join(this.traceDir, `${id}_summary.json`);
     try {
-      writeFileSync(summaryFile, JSON.stringify(summary, null, 2), 'utf-8');
+      await writeFile(summaryFile, JSON.stringify(summary, null, 2), 'utf-8');
     } catch (error) {
-      console.error(`[AHE] Failed to save session summary: ${error}`);
+      logger.error(`Failed to save session summary: ${error}`);
     }
 
     return summary;
@@ -330,7 +353,8 @@ export class TraceManager {
    * @param maxAgeDays - Maximum age of trace files in days (default from config)
    * @returns Number of files removed
    */
-  cleanupOldTraces(maxFiles?: number, maxAgeDays?: number): number {
+  async cleanupOldTraces(maxFiles?: number, maxAgeDays?: number): Promise<number> {
+    const logger = getLogger();
     const config = getConfig();
     const maxFilesCount = maxFiles ?? config.collection.max_trace_files;
     const maxAge = maxAgeDays ?? config.collection.max_trace_age_days;
@@ -338,16 +362,19 @@ export class TraceManager {
 
     let traceFiles: { path: string; mtime: number; name: string }[];
     try {
-      traceFiles = readdirSync(this.traceDir)
-        .filter(f => f.endsWith('.jsonl'))
-        .map(f => ({
+      const files = await readdir(this.traceDir);
+      const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
+
+      const fileStats = await Promise.all(
+        jsonlFiles.map(async f => ({
           path: join(this.traceDir, f),
-          mtime: statSync(join(this.traceDir, f)).mtimeMs,
+          mtime: (await stat(join(this.traceDir, f))).mtimeMs,
           name: f,
         }))
-        .sort((a, b) => b.mtime - a.mtime);
+      );
+      traceFiles = fileStats.sort((a, b) => b.mtime - a.mtime);
     } catch (error) {
-      console.warn('[AHE] Could not read traces for cleanup:', error);
+      logger.warn('Could not read traces for cleanup:', error);
       return 0;
     }
 
@@ -358,16 +385,16 @@ export class TraceManager {
 
       if (shouldRemove) {
         try {
-          unlinkSync(file.path);
+          await unlink(file.path);
           removed++;
 
           // Also remove corresponding summary
           const summaryFile = file.path.replace('.jsonl', '_summary.json');
           if (existsSync(summaryFile)) {
-            unlinkSync(summaryFile);
+            await unlink(summaryFile);
           }
         } catch (error) {
-          console.warn(`[AHE] Could not delete trace file ${file.name}:`, error);
+          logger.warn(`Could not delete trace file ${file.name}:`, error);
         }
       }
     }
@@ -382,7 +409,8 @@ export class TraceManager {
    * @param since - Optional date filter
    * @returns Array of TraceData objects
    */
-  private loadTraceFile(traceFile: string, since?: Date): TraceData[] {
+  private async loadTraceFile(traceFile: string, since?: Date): Promise<TraceData[]> {
+    const logger = getLogger();
     const traces: TraceData[] = [];
 
     if (!existsSync(traceFile)) {
@@ -390,7 +418,7 @@ export class TraceManager {
     }
 
     try {
-      const content = readFileSync(traceFile, 'utf-8');
+      const content = await readFile(traceFile, 'utf-8');
       const lines = content.split('\n').filter(line => line.trim());
 
       for (const line of lines) {
@@ -406,13 +434,13 @@ export class TraceManager {
           }
 
           traces.push(trace);
-        } catch (parseError) {
+        } catch {
           // Skip malformed lines but log warning
-          console.warn(`[AHE] Skipping malformed trace line in ${traceFile}`);
+          logger.warn(`Skipping malformed trace line in ${traceFile}`);
         }
       }
     } catch (error) {
-      console.warn(`[AHE] Could not read trace file ${traceFile}:`, error);
+      logger.warn(`Could not read trace file ${traceFile}:`, error);
     }
 
     return traces;
