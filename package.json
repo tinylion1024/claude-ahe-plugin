@@ -1,0 +1,63 @@
+{
+  "name": "claude-ahe",
+  "version": "0.1.0",
+  "description": "Agentic Harness Engineering for Claude Code - Automatically optimize your Claude Code setup",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "claude-ahe": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src tests",
+    "prepare": "husky",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\""
+  },
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "optimization",
+    "traces",
+    "analysis",
+    "performance"
+  ],
+  "author": "AHE Developer",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@jest/globals": "^30.4.1",
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^17.6.0",
+    "husky": "^9.1.7",
+    "jest": "^29.7.0",
+    "lint-staged": "^17.0.7",
+    "prettier": "^3.8.4",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.61.0"
+  },
+  "dependencies": {
+    "yaml": "^2.3.4",
+    "zod": "^4.4.3"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  }
+}

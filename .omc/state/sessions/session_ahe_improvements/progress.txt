@@ -1,0 +1,23 @@
+# Ralph Progress Log - Claude AHE Improvements
+
+## Session: session_ahe_improvements
+## Started: 2026-06-11
+
+### Iteration 1
+
+#### Current Story: US-001 - Add test coverage reporting with nyc/Istanbul
+
+**Goal:** Configure Jest to generate coverage reports with line, branch, and function coverage.
+
+**Implementation Plan:**
+1. Update jest.config.cjs to enable coverage collection
+2. Add 'coverage' script to package.json
+3. Verify coverage report generation
+
+**Files Changed:**
+- (pending)
+
+**Learnings:**
+- (pending)
+
+---

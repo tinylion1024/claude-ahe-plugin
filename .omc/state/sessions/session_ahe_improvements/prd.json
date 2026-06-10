@@ -1,0 +1,181 @@
+{
+  "project": "Claude AHE TypeScript Improvements",
+  "version": "0.1.0",
+  "stories": [
+    {
+      "id": "US-001",
+      "title": "Add test coverage reporting with nyc/Istanbul",
+      "priority": 1,
+      "passes": false,
+      "acceptanceCriteria": [
+        "package.json includes 'coverage' script using nyc",
+        "Running 'pnpm coverage' generates coverage report in coverage/ directory",
+        "Coverage report shows line, branch, and function coverage percentages",
+        "jest.config.cjs is configured to collect coverage data"
+      ]
+    },
+    {
+      "id": "US-002",
+      "title": "Configure ESLint with TypeScript rules",
+      "priority": 2,
+      "passes": false,
+      "acceptanceCriteria": [
+        ".eslintrc.json exists with TypeScript-specific rules configured",
+        "ESLint dependencies are upgraded to latest compatible versions",
+        "Running 'pnpm lint' passes without errors on existing code",
+        "ESLint config includes rules for no-console, no-magic-numbers"
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "Configure Prettier for code formatting",
+      "priority": 3,
+      "passes": false,
+      "acceptanceCriteria": [
+        ".prettierrc file exists with sensible defaults",
+        "package.json includes 'format' script",
+        "Running 'pnpm format' formats all TypeScript files",
+        ".prettierignore file exists to exclude dist/, node_modules/"
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "Add husky and lint-staged for pre-commit hooks",
+      "priority": 4,
+      "passes": false,
+      "acceptanceCriteria": [
+        "husky is installed and configured",
+        "lint-staged is configured in package.json",
+        ".husky/pre-commit hook exists and runs lint-staged",
+        "Pre-commit hook runs on staged .ts files only"
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Implement configurable logger to replace console output",
+      "priority": 5,
+      "passes": false,
+      "acceptanceCriteria": [
+        "src/lib/logger.ts exists with Logger interface and implementation",
+        "ILogger interface defines error, warn, info, debug methods",
+        "ConsoleLogger and SilentLogger implementations exist",
+        "Logger is configurable via AHE_LOG_LEVEL environment variable",
+        "All console.error/console.log calls in src/ are replaced with logger",
+        "All existing tests still pass after logger refactoring"
+      ]
+    },
+    {
+      "id": "US-006",
+      "title": "Extract magic numbers to configuration",
+      "priority": 6,
+      "passes": false,
+      "acceptanceCriteria": [
+        "Magic numbers in tracer.ts (slice limits 10, 200) are replaced with config",
+        "MAX_ISSUES_PER_CATEGORY constant or config option exists",
+        "MAX_ERROR_PREVIEW_LENGTH constant or config option exists",
+        "All magic numbers are replaced with named constants or config values"
+      ]
+    },
+    {
+      "id": "US-007",
+      "title": "Add interface abstractions for core components",
+      "priority": 7,
+      "passes": false,
+      "acceptanceCriteria": [
+        "src/types/interfaces.ts exists with ITraceManager interface",
+        "src/types/interfaces.ts includes IAnalyzer interface",
+        "src/types/interfaces.ts includes ILogger interface",
+        "TraceManager class implements ITraceManager",
+        "AHEAnalyzer class implements IAnalyzer",
+        "Interfaces are exported from src/types/index.ts"
+      ]
+    },
+    {
+      "id": "US-008",
+      "title": "Refactor synchronous I/O to async I/O",
+      "priority": 8,
+      "passes": false,
+      "acceptanceCriteria": [
+        "All *Sync fs functions in tracer.ts are replaced with async equivalents",
+        "TraceManager methods return Promises where I/O is involved",
+        "Hook files (trace-collector.ts, session-summarizer.ts) properly await async calls",
+        "All existing tests still pass after async refactoring"
+      ]
+    },
+    {
+      "id": "US-009",
+      "title": "Add integration tests",
+      "priority": 9,
+      "passes": false,
+      "acceptanceCriteria": [
+        "tests/integration/ directory exists",
+        "Integration test for trace-collector hook exists and passes",
+        "Integration test for session-summarizer hook exists and passes",
+        "Integration tests use temporary directories for isolation",
+        "Running 'pnpm test' includes integration tests"
+      ]
+    },
+    {
+      "id": "US-010",
+      "title": "Add GitHub Actions CI/CD workflow",
+      "priority": 10,
+      "passes": false,
+      "acceptanceCriteria": [
+        ".github/workflows/ci.yml exists",
+        "CI workflow runs on push to main and pull requests",
+        "CI workflow includes: install, build, lint, test steps",
+        "CI workflow uses pnpm",
+        "CI workflow uploads coverage report as artifact"
+      ]
+    },
+    {
+      "id": "US-011",
+      "title": "Upgrade dependencies to latest versions",
+      "priority": 11,
+      "passes": false,
+      "acceptanceCriteria": [
+        "All devDependencies are updated to latest compatible versions",
+        "All dependencies are updated to latest compatible versions",
+        "All tests pass after dependency upgrades",
+        "Build succeeds after dependency upgrades"
+      ]
+    },
+    {
+      "id": "US-012",
+      "title": "Add CONTRIBUTING.md documentation",
+      "priority": 12,
+      "passes": false,
+      "acceptanceCriteria": [
+        "CONTRIBUTING.md exists at project root",
+        "Document includes development setup instructions",
+        "Document includes code style guidelines",
+        "Document includes commit message conventions",
+        "Document includes PR submission process"
+      ]
+    },
+    {
+      "id": "US-013",
+      "title": "Add CHANGELOG.md",
+      "priority": 13,
+      "passes": false,
+      "acceptanceCriteria": [
+        "CHANGELOG.md exists at project root",
+        "Follows Keep a Changelog format",
+        "Includes entries for 0.1.0 (initial release)",
+        "Includes entries for 0.2.0 (this improvement release)"
+      ]
+    },
+    {
+      "id": "US-014",
+      "title": "Add GitHub PR template",
+      "priority": 14,
+      "passes": false,
+      "acceptanceCriteria": [
+        ".github/pull_request_template.md exists",
+        "Template includes checklist for tests",
+        "Template includes checklist for documentation",
+        "Template includes checklist for breaking changes"
+      ]
+    }
+  ]
+}

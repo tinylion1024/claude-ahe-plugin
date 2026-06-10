@@ -1,0 +1,21 @@
+{
+  "name": "claude-ahe",
+  "description": "Agentic Harness Engineering for Claude Code - Automatically optimize your Claude Code setup by analyzing execution traces",
+  "version": "0.1.0",
+  "author": {
+    "name": "AHE Developer"
+  },
+  "license": "MIT",
+  "keywords": [
+    "optimization",
+    "automation",
+    "traces",
+    "evolution",
+    "performance",
+    "analysis"
+  ],
+  "skills": [
+    "ahe-analyze",
+    "ahe-status"
+  ]
+}
