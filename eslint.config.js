@@ -8,9 +8,10 @@ export default [
   {
     ignores: ['dist/', 'node_modules/', 'coverage/'],
   },
+  // Type-checked config for src files only
   {
     files: ['src/**/*.ts'],
-    extends: [...ts.configs.recommendedTypeChecked],
+    ...ts.configs.recommendedTypeChecked[0],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
@@ -24,6 +25,7 @@ export default [
       },
     },
     rules: {
+      ...ts.configs.recommendedTypeChecked[0].rules,
       'no-console': 'warn',
       'no-magic-numbers': 'warn',
       '@typescript-eslint/no-unused-vars': [
@@ -44,6 +46,7 @@ export default [
       '@typescript-eslint/prefer-readonly': 'warn',
     },
   },
+  // Non-type-checked config for test files
   {
     files: ['tests/**/*.ts'],
     languageOptions: {

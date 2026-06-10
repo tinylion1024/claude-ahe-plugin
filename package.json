@@ -53,11 +53,5 @@
   "dependencies": {
     "yaml": "^2.3.4",
     "zod": "^4.4.3"
-  },
-  "lint-staged": {
-    "*.ts": [
-      "eslint --fix",
-      "prettier --write"
-    ]
   }
 }
