@@ -6,6 +6,8 @@
 [![Test Coverage](https://img.shields.io/badge/coverage-84%25-brightgreen.svg)](./coverage)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg)](https://www.typescriptlang.org/)
 
+**[中文文档](./README_CN.md)** | English
+
 > **Agentic Harness Engineering for Claude Code** - Automatically analyze, optimize, and improve your AI coding workflows
 
 **Claude AHE** is a powerful TypeScript plugin that transforms how you work with Claude Code. It automatically collects tool execution traces, analyzes patterns, identifies bottlenecks, and generates actionable recommendations to supercharge your AI-assisted development.
@@ -138,9 +140,7 @@ Avg execution time: 245.67ms
 | `AHE_REDACTION_ENABLED` | `true` | Enable sensitive data redaction |
 | `AHE_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARN, ERROR, SILENT) |
 
-### Configuration File
-
-Configuration is managed via environment variables. Set them in your shell profile or `.env` file:
+### Configuration Example
 
 ```bash
 # ~/.bashrc or ~/.zshrc
@@ -178,9 +178,6 @@ claude-ahe-ts/
 │   ├── analyzer.test.ts          # Analysis tests
 │   ├── logger.test.ts            # Logger tests
 │   └── integration/              # Integration tests
-├── skills/
-│   ├── ahe-analyze/              # Analyze skill
-│   └── ahe-status/               # Status skill
 ├── typedoc.json                  # TypeDoc configuration
 ├── package.json
 ├── tsconfig.json
@@ -274,19 +271,6 @@ npm run lint:fix     # Fix linting issues
 npm run typecheck    # TypeScript type checking
 npm run docs         # Generate TypeDoc documentation
 npm run format       # Format code with Prettier
-```
-
-### Running Tests
-
-```bash
-# Run all tests
-npm test
-
-# Run with coverage
-npm run coverage
-
-# Run specific test file
-npm test -- --testPathPatterns logger
 ```
 
 ### Test Coverage
