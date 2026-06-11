@@ -68,27 +68,34 @@ describe('trace-collector hook', () => {
       }
     });
 
-    it('should reject JSON missing required fields', () => {
+    it('should normalize missing fields with defaults', () => {
       const input = JSON.stringify({
         tool_name: 'Read',
         // missing tool_input, tool_output, execution_time_ms
       });
 
-      try {
-        execSync(`echo '${input}' | node ${hookPath}`, {
-          encoding: 'utf-8',
-          env: { ...process.env },
-          stdio: 'pipe',
-        });
-        // Should not reach here
-        expect(true).toBe(false);
-      } catch (error: any) {
-        expect(error.status).toBe(1);
-        expect(error.stderr).toContain('Invalid event structure');
-      }
+      // With field normalization, missing fields get defaults instead of error
+      const result = execSync(`echo '${input}' | node ${hookPath}`, {
+        encoding: 'utf-8',
+        env: { ...process.env },
+      });
+
+      const output = JSON.parse(result.trim());
+      expect(output.status).toBe('collected');
+
+      // Verify the trace has default values
+      const files = readdirSync(tempDir).filter(f => f.endsWith('.jsonl'));
+      const traceFile = join(tempDir, files[0]);
+      const content = readFileSync(traceFile, 'utf-8');
+      const trace = JSON.parse(content.trim());
+
+      expect(trace.tool.name).toBe('Read');
+      expect(trace.tool.input).toEqual({});
+      expect(trace.tool.output).toBe('');
+      expect(trace.tool.execution_time_ms).toBe(0);
     });
 
-    it('should validate tool_name is not empty', () => {
+    it('should normalize empty tool_name to Unknown', () => {
       const input = JSON.stringify({
         tool_name: '',
         tool_input: {},
@@ -96,21 +103,25 @@ describe('trace-collector hook', () => {
         execution_time_ms: 100,
       });
 
-      try {
-        execSync(`echo '${input}' | node ${hookPath}`, {
-          encoding: 'utf-8',
-          env: { ...process.env },
-          stdio: 'pipe',
-        });
-        // Should not reach here
-        expect(true).toBe(false);
-      } catch (error: any) {
-        expect(error.status).toBe(1);
-        expect(error.stderr).toContain('Invalid event structure');
-      }
+      // With field normalization, empty tool_name becomes 'Unknown'
+      const result = execSync(`echo '${input}' | node ${hookPath}`, {
+        encoding: 'utf-8',
+        env: { ...process.env },
+      });
+
+      const output = JSON.parse(result.trim());
+      expect(output.status).toBe('collected');
+
+      // Verify the trace has 'Unknown' as tool name
+      const files = readdirSync(tempDir).filter(f => f.endsWith('.jsonl'));
+      const traceFile = join(tempDir, files[0]);
+      const content = readFileSync(traceFile, 'utf-8');
+      const trace = JSON.parse(content.trim());
+
+      expect(trace.tool.name).toBe('Unknown');
     });
 
-    it('should validate execution_time_ms is non-negative', () => {
+    it('should normalize negative execution_time_ms to 0', () => {
       const input = JSON.stringify({
         tool_name: 'Read',
         tool_input: {},
@@ -118,18 +129,22 @@ describe('trace-collector hook', () => {
         execution_time_ms: -100,
       });
 
-      try {
-        execSync(`echo '${input}' | node ${hookPath}`, {
-          encoding: 'utf-8',
-          env: { ...process.env },
-          stdio: 'pipe',
-        });
-        // Should not reach here
-        expect(true).toBe(false);
-      } catch (error: any) {
-        expect(error.status).toBe(1);
-        expect(error.stderr).toContain('Invalid event structure');
-      }
+      // With field normalization, negative execution_time_ms becomes 0
+      const result = execSync(`echo '${input}' | node ${hookPath}`, {
+        encoding: 'utf-8',
+        env: { ...process.env },
+      });
+
+      const output = JSON.parse(result.trim());
+      expect(output.status).toBe('collected');
+
+      // Verify the trace has 0 as execution time
+      const files = readdirSync(tempDir).filter(f => f.endsWith('.jsonl'));
+      const traceFile = join(tempDir, files[0]);
+      const content = readFileSync(traceFile, 'utf-8');
+      const trace = JSON.parse(content.trim());
+
+      expect(trace.tool.execution_time_ms).toBe(0);
     });
   });
 
