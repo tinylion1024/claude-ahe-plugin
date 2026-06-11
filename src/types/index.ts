@@ -4,6 +4,15 @@
 
 import { z } from 'zod';
 
+// Re-export error types
+export {
+  AHEError,
+  TraceWriteError,
+  ConfigValidationError,
+  TraceLoadError,
+  AnalysisError,
+} from './errors.js';
+
 // ============================================================================
 // Trace Types
 // ============================================================================

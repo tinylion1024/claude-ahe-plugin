@@ -7,6 +7,36 @@ import { join } from 'path';
 import { z } from 'zod';
 
 /**
+ * Redaction configuration schema
+ */
+export const RedactionConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  patterns: z.array(z.string()).default([
+    // API Keys
+    'sk-[a-zA-Z0-9]{20,}',
+    'api[_-]?key[\\s:=]+[\\w-]+',
+    'bearer\\s+[\\w-]+',
+    // AWS
+    'AKIA[A-Z0-9]{16}',
+    'aws[_-]?secret[_-]?access[_-]?key[\\s:=]+[\\w/+=]+',
+    // Generic secrets
+    'secret[_-]?key[\\s:=]+[\\w-]+',
+    'password[\\s:=]+[^\\s]+',
+    'token[\\s:=]+[\\w-]+',
+    // Private keys
+    '-----BEGIN (?:RSA |EC |DSA )?PRIVATE KEY-----',
+    // Connection strings
+    'mongodb://[^\\s]+',
+    'postgres(?:ql)?://[^\\s]+',
+    'mysql://[^\\s]+',
+    'redis://[^\\s]+',
+  ]),
+  replacement: z.string().default('[REDACTED]'),
+});
+
+export type RedactionConfig = z.infer<typeof RedactionConfigSchema>;
+
+/**
  * Configuration schema using Zod for validation
  */
 export const AHEConfigSchema = z.object({
@@ -33,6 +63,7 @@ export const AHEConfigSchema = z.object({
     show_execution_times: z.boolean().default(true),
     max_issues_shown: z.number().int().positive().default(5),
   }),
+  redaction: RedactionConfigSchema,
 });
 
 export type AHEConfig = z.infer<typeof AHEConfigSchema>;
@@ -61,6 +92,25 @@ const DEFAULT_CONFIG: AHEConfig = {
     show_timestamps: true,
     show_execution_times: true,
     max_issues_shown: 5,
+  },
+  redaction: {
+    enabled: true,
+    patterns: [
+      'sk-[a-zA-Z0-9]{20,}',
+      'api[_-]?key[\\s:=]+[\\w-]+',
+      'bearer\\s+[\\w-]+',
+      'AKIA[A-Z0-9]{16}',
+      'aws[_-]?secret[_-]?access[_-]?key[\\s:=]+[\\w/+=]+',
+      'secret[_-]?key[\\s:=]+[\\w-]+',
+      'password[\\s:=]+[^\\s]+',
+      'token[\\s:=]+[\\w-]+',
+      '-----BEGIN (?:RSA |EC |DSA )?PRIVATE KEY-----',
+      'mongodb://[^\\s]+',
+      'postgres(?:ql)?://[^\\s]+',
+      'mysql://[^\\s]+',
+      'redis://[^\\s]+',
+    ],
+    replacement: '[REDACTED]',
   },
 };
 
@@ -173,6 +223,11 @@ export function loadConfig(): AHEConfig {
         process.env.AHE_MAX_ISSUES,
         DEFAULT_CONFIG.display.max_issues_shown
       ),
+    },
+    redaction: {
+      enabled: parseEnvBool(process.env.AHE_REDACTION_ENABLED, DEFAULT_CONFIG.redaction.enabled),
+      patterns: DEFAULT_CONFIG.redaction.patterns,
+      replacement: process.env.AHE_REDACTION_REPLACEMENT ?? DEFAULT_CONFIG.redaction.replacement,
     },
   };
 

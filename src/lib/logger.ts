@@ -83,7 +83,7 @@ export class SilentLogger implements ILogger {
  * @param level - String representation of log level
  * @returns LogLevel enum value
  */
-function parseLogLevel(level: string | undefined): LogLevel {
+export function parseLogLevel(level: string | undefined): LogLevel {
   if (!level) {
     return LogLevel.INFO;
   }

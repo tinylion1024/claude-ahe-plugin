@@ -15,10 +15,12 @@
 
 import { TraceManager } from '../lib/tracer.js';
 import { getConfig } from '../lib/config.js';
+import { getLogger } from '../lib/logger.js';
 import { PostToolUseEventSchema, PostToolUseEvent } from '../types/index.js';
 
 async function main(): Promise<void> {
   const config = getConfig();
+  const logger = getLogger();
 
   if (!config.collection.enabled) {
     // Collection disabled, exit silently
@@ -35,7 +37,7 @@ async function main(): Promise<void> {
 
     // Validate input is not empty
     if (!inputData.trim()) {
-      console.error('[AHE] Empty input received, skipping');
+      logger.debug('Empty input received, skipping');
       process.exit(0);
     }
 
@@ -44,14 +46,14 @@ async function main(): Promise<void> {
     try {
       parsed = JSON.parse(inputData);
     } catch (parseError) {
-      console.error('[AHE] Invalid JSON input:', parseError);
+      logger.error('Invalid JSON input:', parseError);
       process.exit(1);
     }
 
     // Validate against schema
     const validationResult = PostToolUseEventSchema.safeParse(parsed);
     if (!validationResult.success) {
-      console.error('[AHE] Invalid event structure:', validationResult.error.issues);
+      logger.error('Invalid event structure:', validationResult.error.issues);
       process.exit(1);
     }
 
@@ -87,9 +89,9 @@ async function main(): Promise<void> {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
 
-    console.error('[AHE] Error in trace collector:', errorMessage);
+    logger.error('Error in trace collector:', errorMessage);
     if (errorStack && process.env.AHE_DEBUG === 'true') {
-      console.error('[AHE] Stack trace:', errorStack);
+      logger.debug('Stack trace:', errorStack);
     }
 
     process.exit(1);

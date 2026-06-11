@@ -5,6 +5,16 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts"
+    }
+  },
   "bin": {
     "claude-ahe": "./dist/index.js"
   },
@@ -13,12 +23,15 @@
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
     "prepare": "husky",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "docs": "typedoc"
   },
   "keywords": [
     "claude-code",
@@ -47,6 +60,7 @@
     "lint-staged": "^17.0.7",
     "prettier": "^3.8.4",
     "ts-jest": "^29.4.11",
+    "typedoc": "^0.28.19",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.0"
   },

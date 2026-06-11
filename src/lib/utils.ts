@@ -2,14 +2,14 @@
  * Utility functions for Claude AHE Plugin
  */
 
-import { platform, homedir } from 'os';
+import { homedir } from 'os';
 import { join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
 
 /**
  * Truncate output to avoid large trace files
  */
-export function truncateOutput(output: any, maxLength: number = 1000): string {
+export function truncateOutput(output: unknown, maxLength: number = 1000): string {
   const outputStr = String(output);
   if (outputStr.length > maxLength) {
     return (
@@ -22,7 +22,7 @@ export function truncateOutput(output: any, maxLength: number = 1000): string {
 /**
  * Check if the output indicates an error
  */
-export function isError(output: any, keywords: string[] = []): boolean {
+export function isError(output: unknown, keywords: string[] = []): boolean {
   const errorKeywords =
     keywords.length > 0 ? keywords : ['error', 'failed', 'exception', 'traceback', 'timeout'];
 

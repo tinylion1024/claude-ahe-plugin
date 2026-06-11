@@ -32,6 +32,8 @@ describe('config', () => {
     delete process.env.AHE_MAX_ERRORS_PER_SESSION;
     delete process.env.AHE_MAX_SLOW_OPS_PER_SESSION;
     delete process.env.AHE_ERROR_PREVIEW_LENGTH;
+    delete process.env.AHE_REDACTION_ENABLED;
+    delete process.env.AHE_REDACTION_REPLACEMENT;
   });
 
   afterEach(() => {
@@ -64,6 +66,11 @@ describe('config', () => {
           show_execution_times: true,
           max_issues_shown: 5,
         },
+        redaction: {
+          enabled: true,
+          patterns: ['sk-[a-zA-Z0-9]+'],
+          replacement: '[REDACTED]',
+        },
       };
 
       const result = AHEConfigSchema.safeParse(config);
@@ -93,6 +100,11 @@ describe('config', () => {
           show_timestamps: true,
           show_execution_times: true,
           max_issues_shown: 5,
+        },
+        redaction: {
+          enabled: true,
+          patterns: ['sk-[a-zA-Z0-9]+'],
+          replacement: '[REDACTED]',
         },
       };
       const result = AHEConfigSchema.safeParse(minimalConfig);

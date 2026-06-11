@@ -13,10 +13,12 @@
 
 import { TraceManager } from '../lib/tracer.js';
 import { getConfig } from '../lib/config.js';
+import { getLogger } from '../lib/logger.js';
 import { getSessionId } from '../lib/utils.js';
 
 async function main(): Promise<void> {
   const config = getConfig();
+  const logger = getLogger();
 
   if (!config.collection.enabled) {
     process.exit(0);
@@ -55,10 +57,10 @@ async function main(): Promise<void> {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[AHE] Error in session summarizer:', errorMessage);
+    logger.error('Error in session summarizer:', errorMessage);
 
     if (process.env.AHE_DEBUG === 'true' && error instanceof Error) {
-      console.error('[AHE] Stack trace:', error.stack);
+      logger.debug('Stack trace:', error.stack);
     }
 
     process.exit(1);

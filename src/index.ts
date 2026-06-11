@@ -11,9 +11,29 @@
  *   npx claude-ahe-ts clean          - Clean old traces
  */
 
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { AHEAnalyzer } from './lib/analyzer.js';
 import { TraceManager } from './lib/tracer.js';
 import { getConfig, resetConfig } from './lib/config.js';
+
+// Get version from package.json
+function getVersion(): string {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const packageJsonPath = join(__dirname, '..', 'package.json');
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    return packageJson.version;
+  } catch {
+    return 'unknown';
+  }
+}
+
+function printVersion(): void {
+  console.log(`claude-ahe v${getVersion()}`);
+}
 
 function printUsage(): void {
   const config = getConfig();
@@ -198,6 +218,18 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0] || 'help';
 
+  // Handle version flag
+  if (command === '--version' || command === '-v') {
+    printVersion();
+    return;
+  }
+
+  // Handle help flag
+  if (command === '--help' || command === '-h' || command === 'help') {
+    printUsage();
+    return;
+  }
+
   switch (command) {
     case 'analyze': {
       const n = args[1] ? parseInt(args[1], 10) : undefined;
@@ -231,9 +263,6 @@ async function main(): Promise<void> {
       await runConfig();
       break;
 
-    case 'help':
-    case '--help':
-    case '-h':
     default:
       printUsage();
       break;
