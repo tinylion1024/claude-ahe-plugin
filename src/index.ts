@@ -51,6 +51,10 @@ Commands:
   weekly            Show weekly activity summary
   errors            Show error analysis
   insights          Generate visual insights report
+  files             Show file operations analysis
+  commands          Show Bash command analysis
+  patterns          Show tool usage patterns
+  heatmap           Generate activity heatmap
   clean [days]      Clean traces older than n days (default: ${config.collection.max_trace_age_days})
   config            Show current configuration
   help              Show this help message
@@ -417,6 +421,330 @@ function generateProgressBar(value: number, max: number, width: number): string 
   return '█'.repeat(filled) + '░'.repeat(empty);
 }
 
+async function runFiles(): Promise<void> {
+  const manager = new TraceManager();
+  const traces = await manager.loadTraces(undefined, 100);
+
+  if (traces.length === 0) {
+    console.log('\n📭 No traces found\n');
+    return;
+  }
+
+  console.log('\n📄 文件操作分析\n');
+
+  // File operations by type
+  const readFiles: Record<string, number> = {};
+  const editFiles: Record<string, number> = {};
+  const writeFiles: Record<string, number> = {};
+  const fileTypes: Record<string, number> = {};
+
+  for (const trace of traces) {
+    const filePath = trace.tool.input.file_path as string;
+    if (!filePath) continue;
+
+    // Extract filename
+    const fileName = filePath.split('/').pop() || filePath;
+    const ext = filePath.split('.').pop() || 'unknown';
+
+    switch (trace.tool.name) {
+      case 'Read':
+        readFiles[fileName] = (readFiles[fileName] || 0) + 1;
+        fileTypes[ext] = (fileTypes[ext] || 0) + 1;
+        break;
+      case 'Edit':
+        editFiles[fileName] = (editFiles[fileName] || 0) + 1;
+        fileTypes[ext] = (fileTypes[ext] || 0) + 1;
+        break;
+      case 'Write':
+        writeFiles[fileName] = (writeFiles[fileName] || 0) + 1;
+        fileTypes[ext] = (fileTypes[ext] || 0) + 1;
+        break;
+    }
+  }
+
+  // Most read files
+  console.log('📖 最常读取的文件:');
+  const topRead = Object.entries(readFiles)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+  for (const [file, count] of topRead) {
+    console.log(`  ${file.substring(0, 40).padEnd(40)} ${count} 次`);
+  }
+
+  // Most edited files
+  console.log('\n✏️ 最常编辑的文件:');
+  const topEdit = Object.entries(editFiles)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+  for (const [file, count] of topEdit) {
+    console.log(`  ${file.substring(0, 40).padEnd(40)} ${count} 次`);
+  }
+
+  // Most written files
+  console.log('\n📝 最常写入的文件:');
+  const topWrite = Object.entries(writeFiles)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+  for (const [file, count] of topWrite) {
+    console.log(`  ${file.substring(0, 40).padEnd(40)} ${count} 次`);
+  }
+
+  // File types
+  console.log('\n📁 文件类型分布:');
+  const totalFiles = Object.values(fileTypes).reduce((a, b) => a + b, 0);
+  const topTypes = Object.entries(fileTypes)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+  for (const [ext, count] of topTypes) {
+    const bar = generateProgressBar(count, totalFiles, 20);
+    console.log(`  .${ext.padEnd(8)} ${bar} ${count}`);
+  }
+}
+
+async function runCommands(): Promise<void> {
+  const manager = new TraceManager();
+  const traces = await manager.loadTraces(undefined, 100);
+
+  if (traces.length === 0) {
+    console.log('\n📭 No traces found\n');
+    return;
+  }
+
+  console.log('\n💻 Bash 命令分析\n');
+
+  const commandTypes: Record<string, number> = {};
+  const commandSamples: Record<string, string[]> = {};
+  const gitCommands: Record<string, number> = {};
+
+  for (const trace of traces) {
+    if (trace.tool.name !== 'Bash') continue;
+    const cmd = trace.tool.input.command as string;
+    if (!cmd) continue;
+
+    // Extract first word
+    const firstWord = cmd.trim().split(/\s+/)[0];
+    commandTypes[firstWord] = (commandTypes[firstWord] || 0) + 1;
+
+    // Store sample
+    if (!commandSamples[firstWord]) commandSamples[firstWord] = [];
+    if (commandSamples[firstWord].length < 3) {
+      commandSamples[firstWord].push(cmd.substring(0, 60));
+    }
+
+    // Git subcommands
+    if (firstWord === 'git') {
+      const gitMatch = cmd.match(/git\s+(\w+)/);
+      if (gitMatch) {
+        gitCommands[gitMatch[1]] = (gitCommands[gitMatch[1]] || 0) + 1;
+      }
+    }
+  }
+
+  // Command types
+  console.log('🔧 命令类型分布:');
+  const total = Object.values(commandTypes).reduce((a, b) => a + b, 0);
+  const topCommands = Object.entries(commandTypes)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15);
+  for (const [cmd, count] of topCommands) {
+    const bar = generateProgressBar(count, total, 15);
+    console.log(`  ${cmd.padEnd(12)} ${bar} ${count}`);
+  }
+
+  // Git subcommands
+  if (Object.keys(gitCommands).length > 0) {
+    console.log('\n📦 Git 子命令分布:');
+    for (const [subcmd, count] of Object.entries(gitCommands).sort((a, b) => b[1] - a[1])) {
+      console.log(`  git ${subcmd}: ${count} 次`);
+    }
+  }
+
+  // Sample commands
+  console.log('\n📝 命令示例:');
+  for (const [cmd, samples] of Object.entries(commandSamples).slice(0, 5)) {
+    console.log(`\n  ${cmd}:`);
+    for (const sample of samples) {
+      console.log(`    $ ${sample}${sample.length >= 60 ? '...' : ''}`);
+    }
+  }
+}
+
+async function runPatterns(): Promise<void> {
+  const manager = new TraceManager();
+  const traces = await manager.loadTraces(undefined, 100);
+
+  if (traces.length === 0) {
+    console.log('\n📭 No traces found\n');
+    return;
+  }
+
+  console.log('\n🔄 工具使用模式分析\n');
+
+  // Group by session
+  const sessionTools: Record<string, string[]> = {};
+  for (const trace of traces) {
+    if (!sessionTools[trace.session_id]) {
+      sessionTools[trace.session_id] = [];
+    }
+    sessionTools[trace.session_id].push(trace.tool.name);
+  }
+
+  // Tool sequences (2-grams)
+  const sequences: Record<string, number> = {};
+  for (const tools of Object.values(sessionTools)) {
+    for (let i = 0; i < tools.length - 1; i++) {
+      const seq = `${tools[i]} → ${tools[i + 1]}`;
+      sequences[seq] = (sequences[seq] || 0) + 1;
+    }
+  }
+
+  console.log('🔗 常见工具序列 (Top 10):');
+  const topSequences = Object.entries(sequences)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+  for (const [seq, count] of topSequences) {
+    console.log(`  ${seq}: ${count} 次`);
+  }
+
+  // Edit patterns
+  console.log('\n✏️ 编辑模式分析:');
+  let totalEdits = 0;
+  let replaceAllCount = 0;
+
+  for (const trace of traces) {
+    if (trace.tool.name !== 'Edit') continue;
+    totalEdits++;
+    if (trace.tool.input.replace_all) {
+      replaceAllCount++;
+    }
+  }
+
+  if (totalEdits > 0) {
+    const replaceAllRate = Math.round((replaceAllCount / totalEdits) * 100);
+    console.log(`  总编辑次数: ${totalEdits}`);
+    console.log(`  批量替换 (replace_all): ${replaceAllCount} (${replaceAllRate}%)`);
+    console.log(`  单次替换: ${totalEdits - replaceAllCount} (${100 - replaceAllRate}%)`);
+  }
+
+  // Session efficiency
+  console.log('\n📊 会话效率分析:');
+  const sessionLengths = Object.values(sessionTools).map(t => t.length);
+  const avgLength = sessionLengths.reduce((a, b) => a + b, 0) / sessionLengths.length;
+  const maxLength = Math.max(...sessionLengths);
+  const minLength = Math.min(...sessionLengths);
+
+  console.log(`  平均每会话调用: ${avgLength.toFixed(1)} 次`);
+  console.log(`  最大会话调用: ${maxLength} 次`);
+  console.log(`  最小会话调用: ${minLength} 次`);
+
+  // Project-tool matrix
+  console.log('\n📈 项目-工具矩阵:');
+  const projectTools: Record<string, Record<string, number>> = {};
+
+  for (const trace of traces) {
+    const project = trace.context.working_directory.split('/').pop() || 'unknown';
+    const tool = trace.tool.name;
+
+    if (!projectTools[project]) projectTools[project] = {};
+    projectTools[project][tool] = (projectTools[project][tool] || 0) + 1;
+  }
+
+  const topProjects = Object.entries(projectTools)
+    .sort(
+      (a, b) =>
+        Object.values(b[1]).reduce((x, y) => x + y, 0) -
+        Object.values(a[1]).reduce((x, y) => x + y, 0)
+    )
+    .slice(0, 5);
+
+  for (const [project, tools] of topProjects) {
+    const topTools = Object.entries(tools)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+    const toolStr = topTools.map(([t, c]) => `${t}:${c}`).join(', ');
+    console.log(`  ${project.substring(0, 20).padEnd(20)} → ${toolStr}`);
+  }
+}
+
+async function runHeatmap(): Promise<void> {
+  const manager = new TraceManager();
+  const traces = await manager.loadTraces(undefined, 100);
+
+  if (traces.length === 0) {
+    console.log('\n📭 No traces found\n');
+    return;
+  }
+
+  console.log('\n🗓️ 活动热力图\n');
+
+  // Hour x Day matrix
+  const heatmap: Record<string, Record<number, number>> = {};
+  const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+  for (const trace of traces) {
+    const date = new Date(trace.timestamp);
+    const day = date.toISOString().split('T')[0];
+    const hour = date.getHours();
+
+    if (!heatmap[day]) heatmap[day] = {};
+    heatmap[day][hour] = (heatmap[day][hour] || 0) + 1;
+  }
+
+  // Get max value for scaling
+  let maxVal = 0;
+  for (const day of Object.values(heatmap)) {
+    for (const val of Object.values(day)) {
+      if (val > maxVal) maxVal = val;
+    }
+  }
+
+  // Print header
+  console.log('     │ 00 02 04 06 08 10 12 14 16 18 20 22');
+  console.log('─────┼' + '───'.repeat(12));
+
+  // Print each day
+  const sortedDays = Object.keys(heatmap).sort();
+  for (const day of sortedDays) {
+    const date = new Date(day);
+    const dayName = dayNames[date.getDay()];
+    const hours = heatmap[day];
+
+    let row = `${dayName} │`;
+    for (let h = 0; h < 24; h += 2) {
+      const val = hours[h] || 0;
+      if (val === 0) {
+        row += ' ░░';
+      } else {
+        const intensity = Math.round((val / maxVal) * 4);
+        const chars = ['░░', '▓▓', '▒▒', '▒▒', '██'];
+        row += ` ${chars[intensity]}`;
+      }
+    }
+    console.log(row);
+  }
+
+  // Legend
+  console.log('\n图例: ░░ 无活动  ▓▓ 低  ▒▒ 中  ██ 高');
+
+  // Hour summary
+  console.log('\n⏰ 每小时活动汇总:');
+  const hourTotals: Record<number, number> = {};
+  for (const day of Object.values(heatmap)) {
+    for (const [hour, count] of Object.entries(day)) {
+      hourTotals[parseInt(hour)] = (hourTotals[parseInt(hour)] || 0) + count;
+    }
+  }
+
+  const maxHour = Math.max(...Object.values(hourTotals));
+  for (let h = 0; h < 24; h++) {
+    const count = hourTotals[h] || 0;
+    if (count > 0) {
+      const bar = generateProgressBar(count, maxHour, 20);
+      console.log(`  ${String(h).padStart(2, '0')}:00 ${bar} ${count}`);
+    }
+  }
+}
+
 async function runConfig(): Promise<void> {
   const config = getConfig();
 
@@ -483,6 +811,22 @@ async function main(): Promise<void> {
 
     case 'insights':
       await runInsights();
+      break;
+
+    case 'files':
+      await runFiles();
+      break;
+
+    case 'commands':
+      await runCommands();
+      break;
+
+    case 'patterns':
+      await runPatterns();
+      break;
+
+    case 'heatmap':
+      await runHeatmap();
       break;
 
     default:
