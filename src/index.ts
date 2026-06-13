@@ -48,6 +48,9 @@ Commands:
   analyze [n]       Analyze last n sessions (default: ${config.analysis.default_lookback_sessions})
   status            Show collection status and statistics
   report            Generate and save analysis report
+  weekly            Show weekly activity summary
+  errors            Show error analysis
+  insights          Generate visual insights report
   clean [days]      Clean traces older than n days (default: ${config.collection.max_trace_age_days})
   config            Show current configuration
   help              Show this help message
@@ -207,6 +210,213 @@ async function runClean(days?: number): Promise<void> {
   console.log(`✅ Cleaned ${deleted} old traces`);
 }
 
+async function runWeekly(): Promise<void> {
+  const config = getConfig();
+  const manager = new TraceManager();
+  const traces = await manager.loadTraces(undefined, 100);
+
+  if (traces.length === 0) {
+    console.log('\n📭 No traces found\n');
+    return;
+  }
+
+  console.log('\n📅 周报摘要\n');
+
+  // Last 7 days
+  const last7Days: Record<string, number> = {};
+  const today = new Date();
+
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+    last7Days[dateStr] = 0;
+  }
+
+  for (const trace of traces) {
+    const date = trace.timestamp.split('T')[0];
+    if (last7Days[date] !== undefined) {
+      last7Days[date]++;
+    }
+  }
+
+  console.log('过去 7 天活动:');
+  const maxCalls = Math.max(...Object.values(last7Days));
+  for (const [date, calls] of Object.entries(last7Days)) {
+    const bar = generateProgressBar(calls, maxCalls || 1, 20);
+    const dayName = new Date(date).toLocaleDateString('zh-CN', { weekday: 'short' });
+    console.log(`  ${date} (${dayName}) ${bar} ${calls}`);
+  }
+
+  const total = Object.values(last7Days).reduce((a, b) => a + b, 0);
+  console.log(`\n📊 本周统计:`);
+  console.log(`  总调用: ${total}`);
+  console.log(`  日均: ${Math.round(total / 7)}`);
+  console.log(`  活跃天数: ${Object.values(last7Days).filter(v => v > 0).length}`);
+}
+
+async function runErrors(): Promise<void> {
+  const manager = new TraceManager();
+  const traces = await manager.loadTraces(undefined, 100);
+  const errors = traces.filter(t => !t.context.success);
+
+  console.log('\n⚠️ 错误详细分析\n');
+
+  if (errors.length === 0) {
+    console.log('✅ 没有发现错误！\n');
+    return;
+  }
+
+  const errorRate =
+    traces.length > 0 ? Math.round((errors.length / traces.length) * 10000) / 100 : 0;
+
+  console.log(`总错误数: ${errors.length}`);
+  console.log(`错误率: ${errorRate}%\n`);
+
+  // By tool
+  const byTool: Record<string, number> = {};
+  for (const error of errors) {
+    byTool[error.tool.name] = (byTool[error.tool.name] || 0) + 1;
+  }
+
+  console.log('按工具分类:');
+  for (const [tool, count] of Object.entries(byTool).sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${tool}: ${count} 次`);
+  }
+
+  console.log('\n错误样本 (最近 5 条):');
+  for (const sample of errors.slice(0, 5)) {
+    console.log(`  [${sample.timestamp}] ${sample.tool.name}`);
+    const output =
+      typeof sample.tool.output === 'string'
+        ? sample.tool.output
+        : JSON.stringify(sample.tool.output);
+    console.log(`    输出: ${output.substring(0, 100)}...`);
+    console.log();
+  }
+}
+
+async function runInsights(): Promise<void> {
+  const manager = new TraceManager();
+  const traces = await manager.loadTraces(undefined, 100);
+
+  if (traces.length === 0) {
+    console.log('\n📭 No traces found\n');
+    return;
+  }
+
+  // Meta
+  const timestamps = traces.map(t => t.timestamp).sort();
+  const sessions = new Set(traces.map(t => t.session_id));
+  const projects = new Set(traces.map(t => t.context.working_directory));
+
+  console.log('╔══════════════════════════════════════════════════════════════╗');
+  console.log('║           Claude Code Trace Analysis Report                  ║');
+  console.log('╚══════════════════════════════════════════════════════════════╝\n');
+
+  console.log('📊 概览');
+  console.log('─'.repeat(50));
+  console.log(`  总调用数: ${traces.length}`);
+  console.log(`  会话数: ${sessions.size}`);
+  console.log(`  项目数: ${projects.size}`);
+  console.log(
+    `  时间范围: ${timestamps[0]?.split('T')[0] || 'N/A'} ~ ${timestamps[timestamps.length - 1]?.split('T')[0] || 'N/A'}\n`
+  );
+
+  // Tools
+  const toolCounts: Record<string, { count: number; success: number }> = {};
+  for (const trace of traces) {
+    const tool = trace.tool.name;
+    if (!toolCounts[tool]) {
+      toolCounts[tool] = { count: 0, success: 0 };
+    }
+    toolCounts[tool].count++;
+    if (trace.context.success) {
+      toolCounts[tool].success++;
+    }
+  }
+
+  const toolsSorted = Object.entries(toolCounts).sort((a, b) => b[1].count - a[1].count);
+  const topTool = toolsSorted[0];
+
+  console.log('💡 洞察');
+  console.log('─'.repeat(50));
+  if (topTool) {
+    const successRate = Math.round((topTool[1].success / topTool[1].count) * 100);
+    console.log(`  🏆 最常用工具: ${topTool[0]} (${topTool[1].count} 次, ${successRate}% 成功率)`);
+  }
+
+  // Projects
+  const projectCounts: Record<string, number> = {};
+  for (const trace of traces) {
+    const project = trace.context.working_directory.split('/').pop() || 'unknown';
+    projectCounts[project] = (projectCounts[project] || 0) + 1;
+  }
+  const topProject = Object.entries(projectCounts).sort((a, b) => b[1] - a[1])[0];
+  if (topProject) {
+    console.log(`  📁 最活跃项目: ${topProject[0]} (${topProject[1]} 次调用)`);
+  }
+
+  // Time
+  const hourCounts: Record<number, number> = {};
+  for (const trace of traces) {
+    const hour = new Date(trace.timestamp).getHours();
+    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+  }
+  const peakHour = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0];
+  if (peakHour) {
+    console.log(`  ⏰ 最活跃时段: ${peakHour[0]}:00 (${peakHour[1]} 次调用)`);
+  }
+
+  // Errors
+  const errors = traces.filter(t => !t.context.success);
+  if (errors.length > 0) {
+    const errorRate = Math.round((errors.length / traces.length) * 10000) / 100;
+    console.log(`  ⚠️ 错误率: ${errorRate}% (${errors.length} 次失败)`);
+  }
+  console.log();
+
+  // Tools breakdown
+  console.log('🔧 工具使用统计');
+  console.log('─'.repeat(50));
+  for (const [tool, data] of toolsSorted) {
+    const bar = generateProgressBar(data.count, traces.length, 20);
+    const successRate = Math.round((data.success / data.count) * 100);
+    console.log(`  ${tool.padEnd(15)} ${bar} ${data.count} (${successRate}%)`);
+  }
+  console.log();
+
+  // Projects breakdown
+  console.log('📁 项目活动');
+  console.log('─'.repeat(50));
+  const projectsSorted = Object.entries(projectCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+  for (const [project, count] of projectsSorted) {
+    const bar = generateProgressBar(count, traces.length, 20);
+    console.log(`  ${project.substring(0, 20).padEnd(20)} ${bar} ${count}`);
+  }
+  console.log();
+
+  // Time distribution
+  console.log('⏰ 时间分布 (24h)');
+  console.log('─'.repeat(50));
+  const maxHour = Math.max(...Object.values(hourCounts));
+  for (let h = 0; h < 24; h++) {
+    const count = hourCounts[h] || 0;
+    if (count > 0) {
+      const bar = generateProgressBar(count, maxHour, 20);
+      console.log(`  ${String(h).padStart(2, '0')}:00 ${bar} ${count}`);
+    }
+  }
+}
+
+function generateProgressBar(value: number, max: number, width: number): string {
+  const filled = Math.round((value / max) * width);
+  const empty = width - filled;
+  return '█'.repeat(filled) + '░'.repeat(empty);
+}
+
 async function runConfig(): Promise<void> {
   const config = getConfig();
 
@@ -261,6 +471,18 @@ async function main(): Promise<void> {
 
     case 'config':
       await runConfig();
+      break;
+
+    case 'weekly':
+      await runWeekly();
+      break;
+
+    case 'errors':
+      await runErrors();
+      break;
+
+    case 'insights':
+      await runInsights();
       break;
 
     default:
